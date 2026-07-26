@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "rut-gon",
+  "name": "shorten-url-worker",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-26",
   "assets": {
