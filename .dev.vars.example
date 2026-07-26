@@ -1,0 +1,2 @@
+# Create .dev.vars from this file for local development. Do not commit it.
+CREATE_API_KEY="replace-with-a-long-random-secret"
