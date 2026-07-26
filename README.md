@@ -1,36 +1,62 @@
-# Rút Gọn URL với Cloudflare Workers + KV
+# Shorten — Cloudflare Workers URL Shortener
 
-Ứng dụng này tạo URL ngắn qua API `POST /api/shorten` và chuyển hướng từ `/<ma-ngan>` về URL gốc. Mỗi lần tạo link bắt buộc có API key; key chỉ tồn tại ở secret của Worker.
+Shorten creates protected short URLs with Cloudflare Workers and Workers KV. Creating, listing, or deleting links requires an API key. Redirects are public.
 
-## Chạy cục bộ
+## Features
 
-1. Cài dependencies: `npm install`
-2. Tạo file `.dev.vars` từ `.dev.vars.example`, sau đó thay bằng API key dài, ngẫu nhiên của bạn.
-3. Chạy: `npm run dev`
+- Create a short URL with `POST /api/shorten`
+- Redirect `/<slug>` to the original URL
+- Manage links at `/manage/`
+- Count successful `GET` redirects in KV
+- Require an API key for create, list, and delete operations
 
-Worker sẽ dùng KV cục bộ khi chạy development mặc định.
+## Run locally
 
-## Triển khai Cloudflare
+1. Install dependencies: `npm install`
+2. Copy `.dev.vars.example` to `.dev.vars` and replace the sample value with a long, random API key.
+3. Start the Worker: `npm run dev`
 
-1. Đăng nhập: `npx wrangler login`
-2. Tạo KV namespace: `npx wrangler kv namespace create LINKS`
-3. Sao chép `id` vừa nhận được vào trường `kv_namespaces[0].id` trong `wrangler.jsonc`.
-4. Đặt secret (không ghi nó vào `wrangler.jsonc`): `npx wrangler secret put CREATE_API_KEY`
-5. Triển khai: `npm run deploy`
+Wrangler uses local KV storage by default during local development.
 
-Cloudflare khuyến nghị đặt API key trong secret thay vì `vars`; KV binding phải trỏ tới ID namespace. Tham khảo: [Cloudflare Secrets](https://developers.cloudflare.com/workers/configuration/secrets/) và [KV bindings](https://developers.cloudflare.com/kv/concepts/kv-bindings/).
+## Deploy to Cloudflare
+
+1. Sign in: `npx wrangler login`
+2. Create the KV namespace: `npx wrangler kv namespace create LINKS`
+3. Copy the returned namespace ID into `wrangler.jsonc` under `kv_namespaces[0].id`.
+4. Create the Worker secret: `npx wrangler secret put CREATE_API_KEY`
+5. Deploy: `npm run deploy`
+
+Keep API keys in Workers secrets rather than `vars`. See [Cloudflare Workers secrets](https://developers.cloudflare.com/workers/configuration/secrets/) and [KV bindings](https://developers.cloudflare.com/kv/concepts/kv-bindings/).
 
 ## API
+
+Create a link:
 
 ```bash
 curl -X POST https://your-worker.workers.dev/api/shorten \
   -H 'content-type: application/json' \
   -H 'x-api-key: YOUR_API_KEY' \
-  -d '{"url":"https://example.com/bai-viet","slug":"bai-viet"}'
+  -d '{"url":"https://example.com/article","slug":"article"}'
 ```
 
-`slug` là tùy chọn. Nếu bỏ trống, Worker tạo mã ngẫu nhiên 8 ký tự. Một slug chỉ nhận chữ/số, `_`, `-`, và có độ dài 3–64 ký tự.
+`slug` is optional. When omitted, the Worker generates an 8-character code. Custom slugs accept letters, numbers, `_`, and `-`, with a length of 3–64 characters.
 
-## Lưu ý về KV
+List links:
 
-Workers KV phù hợp với luồng đọc/redirect nhiều. Vì KV là eventual consistency, không dùng custom slug cho các thao tác cạnh tranh cực cao cần bảo đảm ghi duy nhất tuyệt đối; khi cần mức đảm bảo đó, thêm Durable Object làm lớp điều phối.
+```bash
+curl https://your-worker.workers.dev/api/links \
+  -H 'x-api-key: YOUR_API_KEY'
+```
+
+Delete a link:
+
+```bash
+curl -X DELETE https://your-worker.workers.dev/api/links/article \
+  -H 'x-api-key: YOUR_API_KEY'
+```
+
+## Visit counts in KV
+
+Each successful `GET` redirect updates `visits` and `lastVisitedAt` in the link's KV record. The management screen displays this count.
+
+Workers KV is eventually consistent and limits frequent writes to the same key. This implementation is appropriate for normal traffic, but concurrent high-traffic redirects can produce an approximate count. If exact high-volume analytics becomes necessary later, use Cloudflare Analytics Engine.

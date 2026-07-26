@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Manage shortened URLs securely." />
+    <title>Manage links — Shorten</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Shorten - Home">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.2 13.8a5 5 0 0 0 7.07.05l2.02-2.02a5 5 0 0 0-7.07-7.07l-1.16 1.15" />
+          <path d="M13.8 10.2a5 5 0 0 0-7.07-.05L4.7 12.17a5 5 0 0 0 7.07 7.07l1.16-1.15" />
+        </svg>
+        <span>Shorten</span>
+      </a>
+      <a class="header-link" href="/">Create link</a>
+    </header>
+
+    <main class="manage-main">
+      <section class="manager" aria-labelledby="page-title">
+        <h1 id="page-title">Manage links</h1>
+        <p class="intro">Review and remove the short links you have created.</p>
+
+        <form id="load-form" class="manager-auth" novalidate>
+          <div>
+            <label for="api-key">API key</label>
+            <div class="password-field">
+              <input id="api-key" name="api-key" type="password" autocomplete="off" placeholder="Enter your API key" required />
+              <button class="visibility-toggle" id="visibility-toggle" type="button" aria-label="Show API key" aria-pressed="false">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.3-6 9.5-6 9.5 6 9.5 6-3.3 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+              </button>
+            </div>
+          </div>
+          <button class="primary-button" id="load-button" type="submit"><span>Load links</span></button>
+        </form>
+        <p id="manager-message" class="manager-message" role="alert" aria-live="polite"></p>
+
+        <section id="link-list" class="link-list" aria-live="polite" hidden>
+          <div class="list-summary">
+            <h2 id="link-count">0 links</h2>
+            <p>Link details stored in KV</p>
+          </div>
+          <div class="list-head" aria-hidden="true">
+            <span>Short link</span><span>Destination</span><span>Visits</span><span>Created</span><span></span>
+          </div>
+          <div id="links"></div>
+          <button id="load-more" class="load-more" type="button" hidden>Load more</button>
+        </section>
+
+        <p class="manage-note">Only people with your API key can manage links.</p>
+      </section>
+    </main>
+    <script src="/manage/app.js" defer></script>
+  </body>
+</html>
