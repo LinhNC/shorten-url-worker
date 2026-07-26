@@ -10,12 +10,21 @@ const destinationUrl = document.querySelector('#destination-url');
 const openLink = document.querySelector('#open-link');
 const copyButton = document.querySelector('#copy-button');
 const visibilityToggle = document.querySelector('#visibility-toggle');
+const rememberKey = document.querySelector('#remember-key');
+const API_KEY_STORAGE_KEY = 'shorten-api-key';
+
+restoreApiKey();
 
 visibilityToggle.addEventListener('click', () => {
   const isHidden = apiKeyInput.type === 'password';
   apiKeyInput.type = isHidden ? 'text' : 'password';
   visibilityToggle.setAttribute('aria-label', isHidden ? 'Hide API key' : 'Show API key');
   visibilityToggle.setAttribute('aria-pressed', String(isHidden));
+});
+
+rememberKey.addEventListener('change', persistApiKey);
+apiKeyInput.addEventListener('input', () => {
+  if (rememberKey.checked) persistApiKey();
 });
 
 form.addEventListener('submit', async (event) => {
@@ -29,6 +38,8 @@ form.addEventListener('submit', async (event) => {
     setMessage('Enter a destination URL and API key.');
     return;
   }
+
+  persistApiKey();
 
   setLoading(true);
   try {
@@ -75,4 +86,27 @@ function setLoading(loading) {
 function setMessage(text, success = false) {
   message.textContent = text;
   message.classList.toggle('success', success);
+}
+
+function restoreApiKey() {
+  try {
+    const savedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+    if (!savedKey) return;
+    apiKeyInput.value = savedKey;
+    rememberKey.checked = true;
+  } catch {
+    // Storage may be disabled by the browser's privacy settings.
+  }
+}
+
+function persistApiKey() {
+  try {
+    if (rememberKey.checked && apiKeyInput.value) {
+      localStorage.setItem(API_KEY_STORAGE_KEY, apiKeyInput.value);
+    } else {
+      localStorage.removeItem(API_KEY_STORAGE_KEY);
+    }
+  } catch {
+    // The app remains usable when browser storage is unavailable.
+  }
 }

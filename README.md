@@ -9,6 +9,7 @@ Shorten creates protected short URLs with Cloudflare Workers and Workers KV. Cre
 - Manage links at `/manage/`
 - Count successful `GET` redirects in KV
 - Require an API key for create, list, and delete operations
+- Optionally remember the API key in the browser on a trusted personal device
 
 ## Run locally
 
@@ -60,3 +61,7 @@ curl -X DELETE https://your-worker.workers.dev/api/links/article \
 Each successful `GET` redirect updates `visits` and `lastVisitedAt` in the link's KV record. The management screen displays this count.
 
 Workers KV is eventually consistent and limits frequent writes to the same key. This implementation is appropriate for normal traffic, but concurrent high-traffic redirects can produce an approximate count. If exact high-volume analytics becomes necessary later, use Cloudflare Analytics Engine.
+
+## Remembering the API key
+
+Both app screens offer a **Remember API key on this device** checkbox. When selected, the key is saved in the current browser's local storage and is restored when you return. Deselecting the checkbox deletes the stored key immediately. Only enable this on a private, trusted device.

@@ -7,10 +7,14 @@ const listSection = document.querySelector('#link-list');
 const linksContainer = document.querySelector('#links');
 const linkCount = document.querySelector('#link-count');
 const loadMoreButton = document.querySelector('#load-more');
+const rememberKey = document.querySelector('#remember-key');
+const API_KEY_STORAGE_KEY = 'shorten-api-key';
 
 let links = [];
 let nextCursor = null;
 let pendingDeletion = null;
+
+restoreApiKey();
 
 visibilityToggle.addEventListener('click', () => {
   const isHidden = apiKeyInput.type === 'password';
@@ -19,12 +23,18 @@ visibilityToggle.addEventListener('click', () => {
   visibilityToggle.setAttribute('aria-pressed', String(isHidden));
 });
 
+rememberKey.addEventListener('change', persistApiKey);
+apiKeyInput.addEventListener('input', () => {
+  if (rememberKey.checked) persistApiKey();
+});
+
 loadForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!apiKeyInput.value) {
     setMessage('Enter your API key.');
     return;
   }
+  persistApiKey();
   links = [];
   nextCursor = null;
   pendingDeletion = null;
@@ -168,4 +178,27 @@ function setMessage(text, success = false) {
 function formatDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? 'Unknown date' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date);
+}
+
+function restoreApiKey() {
+  try {
+    const savedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+    if (!savedKey) return;
+    apiKeyInput.value = savedKey;
+    rememberKey.checked = true;
+  } catch {
+    // Storage may be disabled by the browser's privacy settings.
+  }
+}
+
+function persistApiKey() {
+  try {
+    if (rememberKey.checked && apiKeyInput.value) {
+      localStorage.setItem(API_KEY_STORAGE_KEY, apiKeyInput.value);
+    } else {
+      localStorage.removeItem(API_KEY_STORAGE_KEY);
+    }
+  } catch {
+    // The app remains usable when browser storage is unavailable.
+  }
 }
