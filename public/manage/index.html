@@ -48,6 +48,48 @@
             <h2 id="link-count">0 links</h2>
             <p>Link details stored in KV</p>
           </div>
+          <form id="link-controls" class="link-controls">
+            <label for="destination-search">
+              Search destination URL
+              <input id="destination-search" name="destination-search" type="search" maxlength="512" placeholder="https://example.com/path" autocomplete="off" />
+            </label>
+            <label for="sort-order">
+              Sort by created date
+              <select id="sort-order" name="sort-order">
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+              </select>
+            </label>
+            <button id="search-button" class="secondary-button" type="submit">Apply</button>
+          </form>
+          <section class="bulk-delete" aria-labelledby="bulk-delete-title">
+            <div>
+              <h3 id="bulk-delete-title">Delete older links</h3>
+              <p>Preview the exact number of links before permanently deleting them.</p>
+            </div>
+            <div class="bulk-delete-actions">
+              <label for="bulk-delete-months">
+                Older than
+                <select id="bulk-delete-months" name="bulk-delete-months">
+                  <option value="1">1 month</option>
+                  <option value="3">3 months</option>
+                  <option value="6">6 months</option>
+                  <option value="12">12 months</option>
+                </select>
+              </label>
+              <button id="bulk-preview" class="danger-button" type="button">Review deletion</button>
+            </div>
+          </section>
+          <section id="bulk-confirmation" class="delete-confirmation" hidden>
+            <div>
+              <h3>Delete older links?</h3>
+              <p id="bulk-confirmation-text"></p>
+            </div>
+            <div class="confirmation-actions">
+              <button id="bulk-cancel" class="secondary-button" type="button">Cancel</button>
+              <button id="bulk-delete" class="danger-button" type="button">Delete links</button>
+            </div>
+          </section>
           <div class="list-head" aria-hidden="true">
             <span>Short link</span><span>Destination</span><span>Visits</span><span>Created</span><span></span>
           </div>

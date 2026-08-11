@@ -8,11 +8,26 @@ const linksContainer = document.querySelector('#links');
 const linkCount = document.querySelector('#link-count');
 const loadMoreButton = document.querySelector('#load-more');
 const rememberKey = document.querySelector('#remember-key');
+const linkControls = document.querySelector('#link-controls');
+const destinationSearch = document.querySelector('#destination-search');
+const sortOrder = document.querySelector('#sort-order');
+const searchButton = document.querySelector('#search-button');
+const bulkDeleteMonths = document.querySelector('#bulk-delete-months');
+const bulkPreviewButton = document.querySelector('#bulk-preview');
+const bulkConfirmation = document.querySelector('#bulk-confirmation');
+const bulkConfirmationText = document.querySelector('#bulk-confirmation-text');
+const bulkCancelButton = document.querySelector('#bulk-cancel');
+const bulkDeleteButton = document.querySelector('#bulk-delete');
 const API_KEY_STORAGE_KEY = 'shorten-api-key';
 
 let links = [];
 let nextCursor = null;
+let totalLinks = 0;
+let activeSearch = '';
+let activeSort = 'newest';
 let pendingDeletion = null;
+let pendingBulkDeletion = null;
+let listRequestId = 0;
 
 restoreApiKey();
 
@@ -35,44 +50,85 @@ loadForm.addEventListener('submit', async (event) => {
     return;
   }
   persistApiKey();
-  links = [];
-  nextCursor = null;
-  pendingDeletion = null;
+  applyListControls();
+  resetList();
+  await loadLinks();
+});
+
+linkControls.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  applyListControls();
+  resetList();
+  await loadLinks();
+});
+
+sortOrder.addEventListener('change', async () => {
+  applyListControls();
+  resetList();
   await loadLinks();
 });
 
 loadMoreButton.addEventListener('click', () => loadLinks(nextCursor));
 
+bulkPreviewButton.addEventListener('click', previewBulkDeletion);
+bulkCancelButton.addEventListener('click', hideBulkConfirmation);
+bulkDeleteButton.addEventListener('click', deleteOlderLinks);
+
 async function loadLinks(cursor) {
+  const requestId = ++listRequestId;
   setMessage('');
   setLoading(true);
   try {
-    const parameters = new URLSearchParams({ limit: '30' });
+    const parameters = new URLSearchParams({ limit: '30', sort: activeSort });
+    if (activeSearch) parameters.set('search', activeSearch);
     if (cursor) parameters.set('cursor', cursor);
     const response = await fetch(`/api/links?${parameters}`, { headers: { 'x-api-key': apiKeyInput.value } });
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Unable to load links.');
-    links = cursor ? [...links, ...data.links] : data.links;
-    nextCursor = data.cursor;
+    if (requestId !== listRequestId) return false;
+
+    const loadedLinks = Array.isArray(data.links) ? data.links : [];
+    links = cursor ? [...links, ...loadedLinks] : loadedLinks;
+    nextCursor = typeof data.cursor === 'string' ? data.cursor : null;
+    totalLinks = typeof data.total === 'number' && data.total >= 0 ? data.total : links.length;
     listSection.hidden = false;
     renderLinks();
+    return true;
   } catch (error) {
-    listSection.hidden = links.length === 0;
-    setMessage(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+    if (requestId === listRequestId) {
+      listSection.hidden = links.length === 0;
+      setMessage(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+    }
+    return false;
   } finally {
-    setLoading(false);
+    if (requestId === listRequestId) setLoading(false);
   }
+}
+
+function applyListControls() {
+  activeSearch = destinationSearch.value.trim();
+  activeSort = sortOrder.value === 'oldest' ? 'oldest' : 'newest';
+}
+
+function resetList() {
+  listRequestId += 1;
+  links = [];
+  nextCursor = null;
+  totalLinks = 0;
+  pendingDeletion = null;
+  hideBulkConfirmation();
 }
 
 function renderLinks() {
   linksContainer.replaceChildren();
-  linkCount.textContent = `${links.length} ${links.length === 1 ? 'link' : 'links'}`;
+  const countLabel = `${new Intl.NumberFormat().format(links.length)} of ${new Intl.NumberFormat().format(totalLinks)} ${totalLinks === 1 ? 'link' : 'links'}`;
+  linkCount.textContent = activeSearch ? `Showing ${countLabel} matching` : `Showing ${countLabel}`;
   loadMoreButton.hidden = !nextCursor;
 
   if (links.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'empty-state';
-    empty.textContent = 'No links found for this API key.';
+    empty.textContent = activeSearch ? 'No links match this destination URL.' : 'No links found for this API key.';
     linksContainer.append(empty);
     return;
   }
@@ -149,11 +205,10 @@ async function deleteLink(slug, button) {
   setMessage('');
   try {
     const response = await fetch(`/api/links/${encodeURIComponent(slug)}`, { method: 'DELETE', headers: { 'x-api-key': apiKeyInput.value } });
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || 'Unable to delete the link.');
-    }
+    const data = response.status === 204 ? {} : await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Unable to delete the link.');
     links = links.filter((link) => link.slug !== slug);
+    totalLinks = Math.max(links.length, totalLinks - 1);
     pendingDeletion = null;
     setMessage('Link deleted.', true);
     renderLinks();
@@ -164,10 +219,93 @@ async function deleteLink(slug, button) {
   }
 }
 
+async function previewBulkDeletion() {
+  const months = Number(bulkDeleteMonths.value);
+  if (![1, 3, 6, 12].includes(months)) {
+    setMessage('Choose 1, 3, 6, or 12 months before continuing.');
+    return;
+  }
+
+  setMessage('');
+  setBulkLoading(true, 'Reviewing…');
+  try {
+    const result = await requestBulkDeletion(months, true);
+    if (result.count === 0) {
+      hideBulkConfirmation();
+      setMessage(`No links were created on or before ${formatDateTime(result.cutoff)}.`, true);
+      return;
+    }
+    pendingBulkDeletion = result;
+    bulkConfirmationText.textContent = `This will permanently delete ${new Intl.NumberFormat().format(result.count)} ${result.count === 1 ? 'link' : 'links'} created on or before ${formatDateTime(result.cutoff)}. This cannot be undone.`;
+    bulkConfirmation.hidden = false;
+    bulkDeleteButton.focus();
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+  } finally {
+    setBulkLoading(false);
+  }
+}
+
+async function deleteOlderLinks() {
+  if (!pendingBulkDeletion) return;
+  setMessage('');
+  setBulkLoading(true, 'Deleting…');
+  try {
+    let deleted = 0;
+    let remaining = pendingBulkDeletion.count;
+    for (let attempt = 0; remaining > 0 && attempt < 100; attempt += 1) {
+      const result = await requestBulkDeletion(pendingBulkDeletion.olderThanMonths, false);
+      deleted += Number(result.deleted) || 0;
+      remaining = Number(result.remaining) || 0;
+      if (result.deleted === 0 && remaining > 0) {
+        throw new Error('Deletion stopped before all matching links could be removed. Please refresh and try again.');
+      }
+    }
+    if (remaining > 0) throw new Error('Deletion is taking longer than expected. Please refresh and try again.');
+    hideBulkConfirmation();
+    resetList();
+    const reloaded = await loadLinks();
+    if (!reloaded) return;
+    setMessage(`Deleted ${new Intl.NumberFormat().format(deleted)} ${deleted === 1 ? 'link' : 'links'}.`, true);
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+  } finally {
+    setBulkLoading(false);
+  }
+}
+
+async function requestBulkDeletion(months, dryRun) {
+  const response = await fetch('/api/links/bulk-delete', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': apiKeyInput.value },
+    body: JSON.stringify({ olderThanMonths: months, dryRun }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Unable to delete links.');
+  return data;
+}
+
+function hideBulkConfirmation() {
+  pendingBulkDeletion = null;
+  bulkConfirmation.hidden = true;
+}
+
+function setBulkLoading(loading, label = 'Review deletion') {
+  bulkPreviewButton.disabled = loading;
+  bulkDeleteMonths.disabled = loading;
+  bulkCancelButton.disabled = loading;
+  bulkDeleteButton.disabled = loading;
+  bulkPreviewButton.textContent = loading ? label : 'Review deletion';
+  bulkDeleteButton.textContent = loading ? label : 'Delete links';
+}
+
 function setLoading(loading) {
   loadButton.disabled = loading;
   loadButton.querySelector('span').textContent = loading ? 'Loading…' : 'Load links';
   loadMoreButton.disabled = loading;
+  searchButton.disabled = loading;
+  destinationSearch.disabled = loading;
+  sortOrder.disabled = loading;
 }
 
 function setMessage(text, success = false) {
@@ -178,6 +316,11 @@ function setMessage(text, success = false) {
 function formatDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? 'Unknown date' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date);
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? 'the selected date' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
 function restoreApiKey() {
